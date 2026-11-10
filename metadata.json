@@ -1,0 +1,6 @@
+{
+  "name": "Generator Modul Ajar Kurikulum Merdeka",
+  "description": "Aplikasi penyusun Modul Ajar Kurikulum Merdeka & Pembelajaran Mendalam dengan format resmi, AI assistant generator, dan ekspor PDF.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
