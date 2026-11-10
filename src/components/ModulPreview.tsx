@@ -16,12 +16,25 @@ import {
 interface Props {
   modul: ModulAjar;
   onOpenExportModal?: () => void;
+  documentScope?: "ALL" | "MODUL" | "SOAL" | "LKPD" | "MATERI";
+  onDocumentScopeChange?: (scope: "ALL" | "MODUL" | "SOAL" | "LKPD" | "MATERI") => void;
 }
 
-export const ModulPreview: React.FC<Props> = ({ modul, onOpenExportModal }) => {
+export const ModulPreview: React.FC<Props> = ({
+  modul,
+  onOpenExportModal,
+  documentScope,
+  onDocumentScopeChange,
+}) => {
   const { identitas, identifikasi, desainPembelajaran, pengalamanBelajar, asesmenPembelajaran, pendukung } = modul;
 
-  const [documentView, setDocumentView] = useState<"ALL" | "MODUL" | "SOAL" | "LKPD" | "MATERI">("ALL");
+  const [internalView, setInternalView] = useState<"ALL" | "MODUL" | "SOAL" | "LKPD" | "MATERI">("ALL");
+  const documentView = documentScope !== undefined ? documentScope : internalView;
+
+  const handleSelectView = (view: "ALL" | "MODUL" | "SOAL" | "LKPD" | "MATERI") => {
+    setInternalView(view);
+    onDocumentScopeChange?.(view);
+  };
 
   // Determine list of meetings
   const pertemuanList = pengalamanBelajar?.pertemuanList?.length
@@ -44,7 +57,7 @@ export const ModulPreview: React.FC<Props> = ({ modul, onOpenExportModal }) => {
       {/* FILTER VIEW TABS (Hidden on Print) */}
       <div className="flex flex-wrap items-center justify-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200 text-xs font-semibold print:hidden shadow-sm">
         <button
-          onClick={() => setDocumentView("ALL")}
+          onClick={() => handleSelectView("ALL")}
           className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
             documentView === "ALL"
               ? "bg-indigo-700 text-white shadow-sm"
@@ -55,7 +68,7 @@ export const ModulPreview: React.FC<Props> = ({ modul, onOpenExportModal }) => {
         </button>
 
         <button
-          onClick={() => setDocumentView("MODUL")}
+          onClick={() => handleSelectView("MODUL")}
           className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
             documentView === "MODUL"
               ? "bg-indigo-700 text-white shadow-sm"
@@ -67,7 +80,7 @@ export const ModulPreview: React.FC<Props> = ({ modul, onOpenExportModal }) => {
 
         {pendukung?.soalAsesmen && (
           <button
-            onClick={() => setDocumentView("SOAL")}
+            onClick={() => handleSelectView("SOAL")}
             className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
               documentView === "SOAL"
                 ? "bg-indigo-700 text-white shadow-sm"
@@ -80,7 +93,7 @@ export const ModulPreview: React.FC<Props> = ({ modul, onOpenExportModal }) => {
 
         {((pendukung?.lkpdList && pendukung.lkpdList.length > 0) || pendukung?.lkpd) && (
           <button
-            onClick={() => setDocumentView("LKPD")}
+            onClick={() => handleSelectView("LKPD")}
             className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
               documentView === "LKPD"
                 ? "bg-indigo-700 text-white shadow-sm"
@@ -93,7 +106,7 @@ export const ModulPreview: React.FC<Props> = ({ modul, onOpenExportModal }) => {
 
         {pendukung?.materiSingkatList && pendukung.materiSingkatList.length > 0 && (
           <button
-            onClick={() => setDocumentView("MATERI")}
+            onClick={() => handleSelectView("MATERI")}
             className={`px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
               documentView === "MATERI"
                 ? "bg-indigo-700 text-white shadow-sm"
@@ -385,7 +398,7 @@ export const ModulPreview: React.FC<Props> = ({ modul, onOpenExportModal }) => {
         )}
 
         {/* ================= SUPLEMENTAL SECTION: BANK SOAL ASESMEN ================= */}
-        {(documentView === "ALL" || documentView === "SOAL") && pendukung?.soalAsesmen && (
+        {((documentView === "ALL" || documentView === "SOAL") && pendukung?.soalAsesmen) ? (
           <div className="break-before-page pt-4 mt-6 border-t-2 border-indigo-900">
             <div className="bg-indigo-950 text-white p-3 px-4 rounded-t-md font-bold text-base flex justify-between items-center">
               <span className="flex items-center gap-2">
@@ -450,10 +463,16 @@ export const ModulPreview: React.FC<Props> = ({ modul, onOpenExportModal }) => {
               )}
             </div>
           </div>
-        )}
+        ) : documentView === "SOAL" ? (
+          <div className="p-8 text-center bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl my-6">
+            <HelpCircle className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+            <p className="font-bold text-slate-700">Bank Soal Asesmen belum dibuat untuk modul ini.</p>
+            <p className="text-xs text-slate-500 mt-1">Silakan gunakan fitur generate soal pada formulir atau AI Generator.</p>
+          </div>
+        ) : null}
 
         {/* ================= SUPLEMENTAL SECTION: LKPD (PER PERTEMUAN) ================= */}
-        {(documentView === "ALL" || documentView === "LKPD") && (pendukung?.lkpdList?.length || pendukung?.lkpd) && (
+        {((documentView === "ALL" || documentView === "LKPD") && (pendukung?.lkpdList?.length || pendukung?.lkpd)) ? (
           <div className="space-y-6">
             {(pendukung.lkpdList && pendukung.lkpdList.length > 0
               ? pendukung.lkpdList
@@ -534,10 +553,16 @@ export const ModulPreview: React.FC<Props> = ({ modul, onOpenExportModal }) => {
               );
             })}
           </div>
-        )}
+        ) : documentView === "LKPD" ? (
+          <div className="p-8 text-center bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl my-6">
+            <FileSpreadsheet className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+            <p className="font-bold text-slate-700">Lembar Kegiatan Peserta Didik (LKPD) belum dibuat untuk modul ini.</p>
+            <p className="text-xs text-slate-500 mt-1">Silakan gunakan fitur generate LKPD pada formulir atau AI Generator.</p>
+          </div>
+        ) : null}
 
         {/* ================= LAMPIRAN 3: MATERI SINGKAT PERTEMUAN ================= */}
-        {(documentView === "ALL" || documentView === "MATERI") && pendukung?.materiSingkatList && pendukung.materiSingkatList.length > 0 && (
+        {((documentView === "ALL" || documentView === "MATERI") && pendukung?.materiSingkatList && pendukung.materiSingkatList.length > 0) ? (
           <div className="space-y-8 mt-10">
             {pendukung.materiSingkatList.map((materiItem, idx) => {
               const pKe = materiItem.pertemuanKe || idx + 1;
@@ -608,7 +633,13 @@ export const ModulPreview: React.FC<Props> = ({ modul, onOpenExportModal }) => {
               );
             })}
           </div>
-        )}
+        ) : documentView === "MATERI" ? (
+          <div className="p-8 text-center bg-slate-50 border-2 border-dashed border-slate-300 rounded-xl my-6">
+            <BookOpen className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+            <p className="font-bold text-slate-700">Materi Singkat belum dibuat untuk modul ini.</p>
+            <p className="text-xs text-slate-500 mt-1">Silakan gunakan fitur generate ringkasan materi pada formulir atau AI Generator.</p>
+          </div>
+        ) : null}
 
         {/* ================= TANDA TANGAN PENGESAHAN ================= */}
         {(documentView === "ALL" || documentView === "MODUL") && (

@@ -31,9 +31,17 @@ export default function App() {
   );
 
   const [activeView, setActiveView] = useState<"edit" | "preview" | "split">("split");
+  const [documentScope, setDocumentScope] = useState<"ALL" | "MODUL" | "SOAL" | "LKPD" | "MATERI">("ALL");
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [isSavedModalOpen, setIsSavedModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+
+  const handleOpenExportModal = () => {
+    if (activeView === "edit") {
+      setActiveView("preview");
+    }
+    setIsExportModalOpen(true);
+  };
 
   // Sync saved modules to localStorage
   useEffect(() => {
@@ -148,7 +156,7 @@ export default function App() {
         onViewChange={setActiveView}
         onOpenAiModal={() => setIsAiModalOpen(true)}
         onOpenSavedModal={() => setIsSavedModalOpen(true)}
-        onOpenExportModal={() => setIsExportModalOpen(true)}
+        onOpenExportModal={handleOpenExportModal}
         onSelectSample={(sample) => {
           setCurrentModul(sample);
           handleUpdateModul(sample);
@@ -165,6 +173,14 @@ export default function App() {
               onChange={handleUpdateModul}
               onOpenAiGenerator={() => setIsAiModalOpen(true)}
             />
+            {/* Standby preview container for reliable PDF and Word export when on edit view */}
+            <div className="fixed -left-[9999px] top-0 w-[1120px] pointer-events-none opacity-0" aria-hidden="true">
+              <ModulPreview
+                modul={currentModul}
+                documentScope={documentScope}
+                onDocumentScopeChange={setDocumentScope}
+              />
+            </div>
           </div>
         )}
 
@@ -172,7 +188,9 @@ export default function App() {
           <div className="max-w-5xl mx-auto">
             <ModulPreview
               modul={currentModul}
-              onOpenExportModal={() => setIsExportModalOpen(true)}
+              documentScope={documentScope}
+              onDocumentScopeChange={setDocumentScope}
+              onOpenExportModal={handleOpenExportModal}
             />
           </div>
         )}
@@ -190,7 +208,9 @@ export default function App() {
             <div className="lg:col-span-7 bg-slate-200/60 p-4 sm:p-6 rounded-2xl border border-slate-300/80 shadow-inner overflow-x-auto">
               <ModulPreview
                 modul={currentModul}
-                onOpenExportModal={() => setIsExportModalOpen(true)}
+                documentScope={documentScope}
+                onDocumentScopeChange={setDocumentScope}
+                onOpenExportModal={handleOpenExportModal}
               />
             </div>
           </div>
@@ -222,6 +242,13 @@ export default function App() {
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
         modul={currentModul}
+        activeScope={documentScope}
+        onScopeChange={setDocumentScope}
+        onEnsurePreviewMounted={() => {
+          if (activeView === "edit") {
+            setActiveView("preview");
+          }
+        }}
       />
     </div>
   );

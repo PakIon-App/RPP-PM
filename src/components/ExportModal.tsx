@@ -18,52 +18,107 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   modul: ModulAjar;
+  activeScope?: "ALL" | "MODUL" | "SOAL" | "LKPD" | "MATERI";
+  onScopeChange?: (scope: "ALL" | "MODUL" | "SOAL" | "LKPD" | "MATERI") => void;
+  onEnsurePreviewMounted?: () => void;
 }
 
-export const ExportModal: React.FC<Props> = ({ isOpen, onClose, modul }) => {
+export const ExportModal: React.FC<Props> = ({
+  isOpen,
+  onClose,
+  modul,
+  activeScope = "ALL",
+  onScopeChange,
+  onEnsurePreviewMounted,
+}) => {
   const [format, setFormat] = useState<"pdf" | "docx" | "print">("pdf");
   const [paperSize, setPaperSize] = useState<"a4" | "letter" | "legal">("a4");
   const [orientation, setOrientation] = useState<"portrait" | "landscape">("portrait");
-  const [scope, setScope] = useState<"ALL" | "MODUL" | "SOAL" | "LKPD" | "MATERI">("ALL");
+  const [scope, setScope] = useState<"ALL" | "MODUL" | "SOAL" | "LKPD" | "MATERI">(activeScope);
   const [isExporting, setIsExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<string>("");
+  const [exportSuccess, setExportSuccess] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
+  const handleScopeSelect = (newScope: "ALL" | "MODUL" | "SOAL" | "LKPD" | "MATERI") => {
+    setScope(newScope);
+    onScopeChange?.(newScope);
+  };
+
   const handleExecuteExport = async () => {
     setIsExporting(true);
+    setErrorMessage(null);
+    setExportSuccess(false);
 
     const selectedFormat = format;
     const selectedPaper = paperSize;
     const selectedOrient = orientation;
     const selectedScope = scope;
 
-    // Close modal first so overlay is removed before PDF capture or printing
-    onClose();
+    if (selectedFormat === "print") {
+      // For direct browser printing, close modal first so print dialog captures clean page
+      onClose();
+      setTimeout(() => {
+        printModulDocument(selectedPaper, selectedOrient);
+      }, 250);
+      setIsExporting(false);
+      return;
+    }
 
-    setTimeout(async () => {
-      try {
-        if (selectedFormat === "docx") {
-          await exportModulToWord(modul, {
-            paperSize: selectedPaper,
-            orientation: selectedOrient,
-            scope: selectedScope,
-          });
-        } else if (selectedFormat === "pdf") {
-          await exportModulToPdf(
-            "modul-preview-document",
-            modul.title || "Modul_Ajar_Merdeka",
-            { paperSize: selectedPaper, orientation: selectedOrient }
+    try {
+      if (selectedFormat === "docx") {
+        setExportStatus("Menyusun berkas Microsoft Word (.docx)...");
+        await exportModulToWord(modul, {
+          paperSize: selectedPaper,
+          orientation: selectedOrient,
+          scope: selectedScope,
+        });
+        setExportSuccess(true);
+        setExportStatus("Berkas Word (.docx) berhasil diunduh!");
+        setTimeout(() => {
+          onClose();
+          setIsExporting(false);
+          setExportSuccess(false);
+        }, 1200);
+      } else if (selectedFormat === "pdf") {
+        setExportStatus("Merender dan menyusun berkas PDF...");
+        onEnsurePreviewMounted?.();
+
+        // Brief delay to allow DOM styles/layout to settle if view was switched
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        const result = await exportModulToPdf(
+          "modul-preview-document",
+          modul.title || "Modul_Ajar_Merdeka",
+          { paperSize: selectedPaper, orientation: selectedOrient }
+        );
+
+        if (result.success) {
+          setExportSuccess(true);
+          setExportStatus("Berkas PDF berhasil diunduh!");
+          setTimeout(() => {
+            onClose();
+            setIsExporting(false);
+            setExportSuccess(false);
+          }, 1200);
+        } else {
+          setErrorMessage(
+            result.error ||
+              "Gagal membuat PDF dokumen. Anda juga dapat menggunakan opsi 'Cetak Langsung' untuk Simpan sebagai PDF."
           );
-        } else if (selectedFormat === "print") {
-          printModulDocument(selectedPaper, selectedOrient);
+          setIsExporting(false);
         }
-      } catch (err) {
-        console.error("Export error:", err);
-        alert("Terjadi kesalahan saat memproses ekspor.");
-      } finally {
-        setIsExporting(false);
       }
-    }, 150);
+    } catch (err: any) {
+      console.error("Export error:", err);
+      setErrorMessage(
+        err?.message ||
+          "Terjadi kesalahan saat memproses ekspor berkas. Silakan coba kembali."
+      );
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -243,8 +298,9 @@ export const ExportModal: React.FC<Props> = ({ isOpen, onClose, modul }) => {
             </label>
             <select
               value={scope}
-              onChange={(e) => setScope(e.target.value as any)}
-              className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium text-slate-900"
+              onChange={(e) => handleScopeSelect(e.target.value as any)}
+              disabled={isExporting}
+              className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white font-medium text-slate-900 disabled:opacity-60"
             >
               <option value="ALL">📦 Paket Lengkap (Modul Ajar + Soal + LKPD + Materi Singkat)</option>
               <option value="MODUL">📄 Modul Ajar Utama Saja</option>
@@ -253,6 +309,34 @@ export const ExportModal: React.FC<Props> = ({ isOpen, onClose, modul }) => {
               <option value="MATERI">📖 Materi Singkat Pembelajaran (Semua Pertemuan)</option>
             </select>
           </div>
+
+          {/* STATUS NOTIFICATIONS */}
+          {isExporting && (
+            <div className="p-3.5 bg-sky-50 border border-sky-200 rounded-xl flex items-center gap-3 text-sky-900">
+              <div className="w-5 h-5 border-2 border-sky-600 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              <span className="text-xs font-semibold">{exportStatus || "Sedang memproses ekspor berkas..."}</span>
+            </div>
+          )}
+
+          {exportSuccess && (
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-900 animate-fadeIn">
+              <div className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center flex-shrink-0">
+                <Check className="w-3.5 h-3.5" />
+              </div>
+              <span className="text-xs font-bold">{exportStatus}</span>
+            </div>
+          )}
+
+          {errorMessage && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl space-y-1.5 text-rose-900 animate-fadeIn">
+              <p className="text-xs font-bold flex items-center gap-1.5 text-rose-700">
+                <span>⚠️</span> {errorMessage}
+              </p>
+              <p className="text-[11px] text-rose-600 leading-normal">
+                Tips: Anda juga dapat menggunakan opsi <strong>Cetak Langsung (Print)</strong> lalu pilih tujuan <strong>"Save as PDF" / "Simpan sebagai PDF"</strong> di browser.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* MODAL FOOTER */}
@@ -260,7 +344,8 @@ export const ExportModal: React.FC<Props> = ({ isOpen, onClose, modul }) => {
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-semibold hover:bg-slate-100 transition cursor-pointer"
+            disabled={isExporting}
+            className="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-semibold hover:bg-slate-100 transition cursor-pointer disabled:opacity-50"
           >
             Batal
           </button>
@@ -272,7 +357,13 @@ export const ExportModal: React.FC<Props> = ({ isOpen, onClose, modul }) => {
             className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold shadow-md shadow-sky-600/30 flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
           >
             <Download className="w-4 h-4" />
-            {isExporting ? "Memproses..." : format === "docx" ? "Unduh Word (.docx)" : format === "pdf" ? "Unduh PDF (A4)" : "Cetak Dokumen"}
+            {isExporting
+              ? "Memproses..."
+              : format === "docx"
+              ? "Unduh Word (.docx)"
+              : format === "pdf"
+              ? `Unduh PDF (${paperSize.toUpperCase()})`
+              : "Buka Jendela Cetak"}
           </button>
         </div>
       </div>

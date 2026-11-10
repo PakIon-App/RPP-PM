@@ -11,10 +11,24 @@ import {
   BorderStyle,
   HeadingLevel,
   PageBreak,
+  PageOrientation,
 } from "docx";
-import { saveAs } from "file-saver";
 import { ModulAjar } from "../types";
 import { getKotaDanTanggal } from "./formatUtils";
+
+export const saveBlobAsFile = (blob: Blob, filename: string) => {
+  if (typeof window === "undefined") return;
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  setTimeout(() => {
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  }, 100);
+};
 
 export interface ExportOptions {
   paperSize: "a4" | "letter" | "legal";
@@ -857,12 +871,52 @@ export const exportModulToWord = async (modul: ModulAjar, options: ExportOptions
     });
   }
 
+  // Page size in twips (1/20 of a point)
+  let pageWidth = 11906; // A4 portrait width
+  let pageHeight = 16838; // A4 portrait height
+  if (options.paperSize === "letter") {
+    pageWidth = 12240;
+    pageHeight = 15840;
+  } else if (options.paperSize === "legal") {
+    pageWidth = 12240;
+    pageHeight = 20160;
+  }
+
+  const isLandscape = options.orientation === "landscape";
+  if (isLandscape) {
+    const temp = pageWidth;
+    pageWidth = pageHeight;
+    pageHeight = temp;
+  }
+
+  if (children.length === 0) {
+    children.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        spacing: { before: 400, after: 400 },
+        children: [
+          new TextRun({
+            text: `Belum ada konten untuk bagian "${scope}" pada modul ini. Silakan generate atau lengkapi data terlebih dahulu.`,
+            size: 22,
+            italics: true,
+            color: "64748B",
+          }),
+        ],
+      })
+    );
+  }
+
   // Create Document
   const doc = new Document({
     sections: [
       {
         properties: {
           page: {
+            size: {
+              width: pageWidth,
+              height: pageHeight,
+              orientation: isLandscape ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT,
+            },
             margin: {
               top: 1134, // 2cm
               bottom: 1134,
@@ -882,7 +936,7 @@ export const exportModulToWord = async (modul: ModulAjar, options: ExportOptions
     .toLowerCase();
   const filename = `${cleanName}.docx`;
 
-  saveAs(blob, filename);
+  saveBlobAsFile(blob, filename);
 };
 
 class TableTableCellNoBorder extends TableCell {
@@ -890,10 +944,10 @@ class TableTableCellNoBorder extends TableCell {
     super({
       width: { size: 50, type: WidthType.PERCENTAGE },
       borders: {
-        top: { style: BorderStyle.NONE, size: 0, color: "AUTO" },
-        bottom: { style: BorderStyle.NONE, size: 0, color: "AUTO" },
-        left: { style: BorderStyle.NONE, size: 0, color: "AUTO" },
-        right: { style: BorderStyle.NONE, size: 0, color: "AUTO" },
+        top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+        right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
       },
       children: options.children,
     });

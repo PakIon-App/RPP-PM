@@ -35,11 +35,14 @@ export const exportModulToPdf = async (
   elementId: string,
   filename: string,
   options?: PdfExportOptions
-) => {
+): Promise<{ success: boolean; error?: string }> => {
   const element = document.getElementById(elementId);
   if (!element) {
-    alert("Elemen dokumen tidak ditemukan!");
-    return;
+    console.error(`Elemen dengan ID "${elementId}" tidak ditemukan.`);
+    return {
+      success: false,
+      error: `Elemen dokumen tidak ditemukan di layar. Pastikan tampilan pratinjau dokumen sedang aktif.`,
+    };
   }
 
   const paperFormat = options?.paperSize || "a4";
@@ -47,13 +50,21 @@ export const exportModulToPdf = async (
 
   applyPrintPageStyle(paperFormat, orientation);
 
+  // Temporarily remove shadow and border for clean PDF rendering
+  const prevBoxShadow = element.style.boxShadow;
+  const prevBorder = element.style.border;
+  element.style.boxShadow = "none";
+  element.style.border = "none";
+
   try {
     const canvas = await html2canvas(element, {
-      scale: 1.5,
+      scale: 2, // 2x high resolution for clear text & crisp table borders
       useCORS: true,
       allowTaint: true,
       logging: false,
       backgroundColor: "#ffffff",
+      scrollX: 0,
+      scrollY: 0,
     });
 
     const imgData = canvas.toDataURL("image/jpeg", 0.95);
@@ -61,6 +72,7 @@ export const exportModulToPdf = async (
       orientation: orientation,
       unit: "mm",
       format: paperFormat,
+      compress: true,
     });
 
     const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -71,21 +83,29 @@ export const exportModulToPdf = async (
     let heightLeft = imgHeight;
     let position = 0;
 
-    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+    pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
     heightLeft -= pdfHeight;
 
-    while (heightLeft > 0) {
+    // Use a small 3mm threshold to avoid empty trailing page due to rounding
+    while (heightLeft > 3) {
       position = heightLeft - imgHeight;
       pdf.addPage(paperFormat, orientation);
-      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, "JPEG", 0, position, imgWidth, imgHeight, undefined, "FAST");
       heightLeft -= pdfHeight;
     }
 
-    const cleanFileName = `${filename.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`;
+    const cleanFileName = `${(filename || "Modul_Ajar_Merdeka").replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`;
     pdf.save(cleanFileName);
-  } catch (err) {
-    console.error("PDF Direct Canvas generation failed, falling back to browser print engine:", err);
-    window.print();
+    return { success: true };
+  } catch (err: any) {
+    console.error("PDF Direct Canvas generation failed:", err);
+    return {
+      success: false,
+      error: err?.message || "Gagal merender PDF dokumen.",
+    };
+  } finally {
+    element.style.boxShadow = prevBoxShadow;
+    element.style.border = prevBorder;
   }
 };
 
